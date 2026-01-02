@@ -1,24 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../l10n/app_localizations.dart';
-
 import '../../auth/auth_notifier.dart';
 import '../../auth/auth_status.dart';
+import '../../l10n/app_localizations.dart';
 import '../../models/app_user.dart';
 import '../../root_gate.dart';
 import '../../services/profile_service.dart';
-import '../../widgets/profile/profile_header.dart';
-import '../../widgets/profile/profile_stats_grid.dart';
+import '../../theme/theme_controller.dart';
 import '../../widgets/profile/profile_achievements_row.dart';
 import '../../widgets/profile/profile_care_circle_section.dart';
+import '../../widgets/profile/profile_header.dart';
 import '../../widgets/profile/profile_settings_list.dart';
-import 'edit_profile_sheet.dart';
+import '../../widgets/profile/profile_stats_grid.dart';
 import '../auth/login_screen.dart';
+import '../history/history_7days_screen.dart';
+import '../settings/about_screen.dart';
+import '../settings/help_support_screen.dart';
 import '../settings/notifications_settings_screen.dart';
 import '../settings/privacy_settings_screen.dart';
-import '../settings/help_support_screen.dart';
-import '../settings/about_screen.dart';
+import 'edit_profile_sheet.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -33,8 +34,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<({int taken, int missed, double adherence})> _loadWeeklyStats(
     String uid,
   ) async {
-    final logs = await _service.getDoseLogsLast7Days(uid);
-    return _service.computeAdherenceFromLogs(logs);
+    // Use the new HistoryService-based method for accurate counts
+    return await _service.getWeeklyAdherence(uid);
   }
 
   @override
@@ -166,6 +167,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           builder: (_) => const NotificationsSettingsScreen(),
                         ),
                       ),
+                      onOpenTheme: () => _openThemeSheet(context),
                       onOpenPrivacy: () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => const PrivacySettingsScreen(),
@@ -178,6 +180,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       onOpenAbout: () => Navigator.of(context).push(
                         MaterialPageRoute(builder: (_) => const AboutScreen()),
+                      ),
+                      onOpenHistory: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const History7DaysScreen(),
+                        ),
                       ),
                       onOpenDelete: () => _confirmDeleteAccount(context),
                       onSignOut: () async {
@@ -298,6 +305,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       }
     }
+  }
+
+  Future<void> _openThemeSheet(BuildContext context) async {
+    final themeController = context.read<ThemeController>();
+    final choices = themeController.choices;
+    await showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 48,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                context.loc.t('theme'),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+              const SizedBox(height: 8),
+              ...choices.map((c) => ListTile(
+                    leading: CircleAvatar(backgroundColor: c.primary),
+                    title: Text(c.name),
+                    trailing: themeController.themeKey == c.key
+                        ? const Icon(Icons.check, color: Colors.teal)
+                        : null,
+                    onTap: () {
+                      themeController.setTheme(c.key);
+                      Navigator.of(context).pop();
+                    },
+                  )),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
 

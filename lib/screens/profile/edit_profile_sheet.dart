@@ -31,14 +31,21 @@ class EditProfileSheet extends StatefulWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: EditProfileSheet(
-          user: user,
-          service: service,
-          focusAvatar: focusAvatar,
+      builder: (_) => SafeArea(
+        top: false,
+        left: false,
+        right: false,
+        minimum: const EdgeInsets.only(bottom: 12),
+        child: Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom +
+                MediaQuery.of(context).viewPadding.bottom,
+          ),
+          child: EditProfileSheet(
+            user: user,
+            service: service,
+            focusAvatar: focusAvatar,
+          ),
         ),
       ),
     );
@@ -65,9 +72,13 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     super.dispose();
   }
 
-  Future<void> _uploadAvatarFile(File file) async {
-    final url = await widget.service.uploadAvatar(widget.user.uid, file);
-    await widget.service.updatePhotoUrl(widget.user.uid, url);
+  Future<void> _uploadAvatarFile({File? file, Uint8List? bytes, String? name}) async {
+    await widget.service.uploadAvatar(
+      uid: widget.user.uid,
+      file: kIsWeb ? null : file,
+      bytes: bytes,
+      filename: name,
+    );
     if (!mounted) return;
     ScaffoldMessenger.of(
       context,
@@ -107,8 +118,13 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
         if (mounted) setState(() => _saving = false);
         return;
       }
-      final file = File(picked.path);
-      await _uploadAvatarFile(file);
+      if (kIsWeb) {
+        final bytes = await picked.readAsBytes();
+        await _uploadAvatarFile(bytes: bytes, name: picked.name);
+      } else {
+        final file = File(picked.path);
+        await _uploadAvatarFile(file: file, name: picked.name);
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -145,7 +161,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
         return;
       }
       final file = File(picked.path);
-      await _uploadAvatarFile(file);
+      await _uploadAvatarFile(file: file, name: picked.name);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(

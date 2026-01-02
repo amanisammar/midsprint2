@@ -1,27 +1,33 @@
 import 'package:flutter/material.dart';
+
 import '../../l10n/app_localizations.dart';
 
+/// Widget displaying a list of profile settings and actions.
 class ProfileSettingsList extends StatelessWidget {
   const ProfileSettingsList({
     super.key,
     required this.shareWithFamily,
     required this.onToggleShare,
+    required this.onOpenTheme,
     required this.onOpenNotifications,
     required this.onOpenPrivacy,
     required this.onOpenHelp,
     required this.onOpenAbout,
     required this.onOpenDelete,
     required this.onSignOut,
+    required this.onOpenHistory,
   });
 
   final bool shareWithFamily;
   final ValueChanged<bool> onToggleShare;
+  final VoidCallback onOpenTheme;
   final VoidCallback onOpenNotifications;
   final VoidCallback onOpenPrivacy;
   final VoidCallback onOpenHelp;
   final VoidCallback onOpenAbout;
   final VoidCallback onOpenDelete;
   final VoidCallback onSignOut;
+  final VoidCallback onOpenHistory;
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +45,21 @@ class ProfileSettingsList extends StatelessWidget {
             activeThumbColor: Colors.teal,
             title: Text(loc.t('shareWithFamily')),
             subtitle: Text(loc.t('shareWithFamilyDesc')),
+          ),
+          const Divider(height: 1),
+          _ProfileSettingItem(
+            icon: Icons.history,
+            title: loc.t('history7Days'),
+            subtitle: loc.t('viewHistory'),
+            onTap: onOpenHistory,
+            iconColor: const Color(0xFF23C3AE),
+          ),
+          const Divider(height: 1),
+          _ProfileSettingItem(
+            icon: Icons.palette_outlined,
+            title: loc.t('theme'),
+            subtitle: loc.t('themeSubtitle'),
+            onTap: onOpenTheme,
           ),
           const Divider(height: 1),
           _ProfileSettingItem(

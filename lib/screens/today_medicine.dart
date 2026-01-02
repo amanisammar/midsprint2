@@ -1,8 +1,14 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:confetti/confetti.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'dart:async';
+
 import '../../l10n/app_localizations.dart';
+import '../services/dose_log_service.dart';
+import '../services/gamification_service.dart';
+import '../services/history_service.dart';
 
 class TodayMedicineTab extends StatefulWidget {
   final String role;
@@ -22,18 +28,45 @@ class TodayMedicineTab extends StatefulWidget {
 
 class _TodayMedicineTabState extends State<TodayMedicineTab> {
   Timer? _timer;
+  final _doseLogService = DoseLogService();
+  final _gamificationService = GamificationService();
+  final _historyService = HistoryService();
+  final ConfettiController _confettiController =
+      ConfettiController(duration: const Duration(seconds: 1));
+
+  double? _weeklyAdherence;
+  bool _loadingAdherence = false;
 
   @override
   void initState() {
     super.initState();
     // Update status every minute for real-time changes
     _timer = Timer.periodic(const Duration(minutes: 1), (_) => setState(() {}));
+    _loadWeeklyAdherence();
   }
 
   @override
   void dispose() {
+    _confettiController.dispose();
     _timer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _loadWeeklyAdherence() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    setState(() => _loadingAdherence = true);
+    try {
+      final summaries = await _historyService.getLast7DaysSummary(user.uid);
+      final totalScheduled = summaries.fold<int>(0, (acc, s) => acc + s.scheduledCount);
+      final totalTaken = summaries.fold<int>(0, (acc, s) => acc + s.takenCount);
+      final adherence = totalScheduled > 0 ? (totalTaken / totalScheduled) * 100 : 0.0;
+      setState(() => _weeklyAdherence = adherence);
+    } finally {
+      if (mounted) {
+        setState(() => _loadingAdherence = false);
+      }
+    }
   }
 
   Future<void> _markAsTaken(
@@ -53,6 +86,7 @@ class _TodayMedicineTabState extends State<TodayMedicineTab> {
 
       final doc = await docRef.get();
       final data = doc.data();
+      final medName = data?['name'] as String? ?? 'Unnamed';
       final dailyTaken = Map<String, dynamic>.from(data?['dailyTaken'] ?? {});
       final takenList = List<String>.from(dailyTaken[todayDate] ?? []);
 
@@ -61,16 +95,79 @@ class _TodayMedicineTabState extends State<TodayMedicineTab> {
         dailyTaken[todayDate] = takenList;
         await docRef.update({'dailyTaken': dailyTaken});
 
-        // Award 10 points for taking medicine on time
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .update({'points': FieldValue.increment(10)});
+        // ✅ NEW: Write dose log to doseLogs collection with deterministic ID
+        await _doseLogService.logDoseTaken(
+          uid: user.uid,
+          medicineId: docId,
+          medName: medName,
+          dateKey: todayDate,
+          timeKey: timeKey,
+        );
+
+        // Gamification award
+        final scheduledAt = _buildScheduledDateTime(todayDate, timeKey);
+        final result = await _gamificationService.awardDose(
+          uid: user.uid,
+          scheduledAt: scheduledAt,
+          takenAt: DateTime.now(),
+        );
+
+        if (mounted) {
+          final snack = SnackBar(
+            content: Text(_buildRewardMessage(result, context, medName)),
+            duration: const Duration(seconds: 2),
+          );
+          ScaffoldMessenger.of(context).showSnackBar(snack);
+
+          if (result.streakMilestone || result.fullDayAwarded) {
+            _confettiController.play();
+          }
+        }
+
+        // Refresh adherence widget
+        _loadWeeklyAdherence();
       }
     } catch (e) {
       // Handle error, maybe show snackbar
       debugPrint('Error marking as taken: $e');
     }
+  }
+
+  DateTime _buildScheduledDateTime(String dateKey, String timeKey) {
+    final parts = dateKey.split('-');
+    final year = int.tryParse(parts[0]) ?? DateTime.now().year;
+    final month = int.tryParse(parts[1]) ?? DateTime.now().month;
+    final day = int.tryParse(parts[2]) ?? DateTime.now().day;
+    final date = DateTime(year, month, day);
+
+    final time = _parseTime(timeKey);
+    if (time != null) {
+      return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    }
+    return date;
+  }
+
+  String _buildRewardMessage(GamificationResult result, BuildContext context, String medName) {
+    final buffer = StringBuffer();
+    buffer.write(result.onTime
+        ? context.loc.t('statusTaken')
+        : context.loc.t('statusLate'));
+    buffer.write(' ');
+    buffer.write(medName);
+    buffer.write(' • +');
+    buffer.write(result.pointsAwarded);
+    buffer.write(' ');
+    buffer.write(context.loc.t('points'));
+
+    if (result.streakMilestone) {
+      buffer.write(' • ');
+      buffer.write('${result.streakDays}-day streak!');
+    }
+    if (result.fullDayAwarded) {
+      buffer.write(' • ');
+      buffer.write(context.loc.t('historyLoadedSuccess'));
+    }
+    return buffer.toString();
   }
 
   @override
@@ -93,6 +190,7 @@ class _TodayMedicineTabState extends State<TodayMedicineTab> {
 
         final userData = userSnapshot.data?.data() as Map<String, dynamic>?;
         final points = userData?['points'] ?? 0;
+        final streak = userData?['streakDays'] ?? 0;
 
         final stream = FirebaseFirestore.instance
             .collection('users')
@@ -100,39 +198,52 @@ class _TodayMedicineTabState extends State<TodayMedicineTab> {
             .collection('medicines')
             .snapshots();
 
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _PointsCard(points: points),
-              const SizedBox(height: 12),
+        return Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(child: _PointsCard(points: points)),
+                      const SizedBox(width: 12),
+                      _StreakChip(streakDays: streak),
+                      const SizedBox(width: 12),
+                      _AdherenceRing(
+                        adherence: _weeklyAdherence,
+                        loading: _loadingAdherence,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
 
-              Text(
-                context.loc.t('todayMedicinesTitle'),
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
+                  Text(
+                    context.loc.t('todayMedicinesTitle'),
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
 
-              Expanded(
-                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: stream,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: stream,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
 
-                    if (snapshot.hasError) {
-                      return Center(child: Text(context.loc.t('failedLoad')));
-                    }
+                        if (snapshot.hasError) {
+                          return Center(child: Text(context.loc.t('failedLoad')));
+                        }
 
-                    final docs = snapshot.data?.docs ?? [];
-                    if (docs.isEmpty) {
-                      return Center(child: Text(context.loc.t('noMedicines')));
-                    }
+                        final docs = snapshot.data?.docs ?? [];
+                        if (docs.isEmpty) {
+                          return Center(child: Text(context.loc.t('noMedicines')));
+                        }
 
                     final now = DateTime.now();
                     final currentDay = _getCurrentDay(now.weekday);
@@ -223,29 +334,43 @@ class _TodayMedicineTabState extends State<TodayMedicineTab> {
                           (t2.hour * 60 + t2.minute);
                     });
 
-                    return ListView.builder(
-                      itemCount: todayMedicines.length,
-                      itemBuilder: (context, index) {
-                        final med = todayMedicines[index];
-                        return _MedicineRow(
-                          name: med['name'],
-                          dose: med['dose'],
-                          time: med['timeLabel'],
-                          status: med['status'],
-                          isTaken: med['isTaken'],
-                          onMarkTaken: () => _markAsTaken(
-                            med['docId'],
-                            med['timeKey'],
-                            todayDate,
-                          ),
+                        return ListView.builder(
+                          itemCount: todayMedicines.length,
+                          itemBuilder: (context, index) {
+                            final med = todayMedicines[index];
+                            return _MedicineRow(
+                              name: med['name'],
+                              dose: med['dose'],
+                              time: med['timeLabel'],
+                              status: med['status'],
+                              isTaken: med['isTaken'],
+                              onMarkTaken: () => _markAsTaken(
+                                med['docId'],
+                                med['timeKey'],
+                                todayDate,
+                              ),
+                            );
+                          },
                         );
                       },
-                    );
-                  },
-                ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            Align(
+              alignment: Alignment.topCenter,
+              child: ConfettiWidget(
+                confettiController: _confettiController,
+                blastDirectionality: BlastDirectionality.explosive,
+                emissionFrequency: 0.2,
+                numberOfParticles: 20,
+                maxBlastForce: 15,
+                minBlastForce: 5,
+                shouldLoop: false,
+              ),
+            ),
+          ],
         );
       },
     );
@@ -384,6 +509,82 @@ class _PointsCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _StreakChip extends StatelessWidget {
+  final int streakDays;
+  const _StreakChip({required this.streakDays});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF23C3AE), width: 1.2),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.local_fire_department, color: Color(0xFF23C3AE)),
+          const SizedBox(width: 6),
+          Text(
+            '$streakDays d',
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF23C3AE),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdherenceRing extends StatelessWidget {
+  final double? adherence;
+  final bool loading;
+  const _AdherenceRing({required this.adherence, required this.loading});
+
+  @override
+  Widget build(BuildContext context) {
+    final value = (adherence ?? 0).clamp(0, 100).toDouble();
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
+      ),
+      child: SizedBox(
+        height: 52,
+        width: 52,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            CircularProgressIndicator(
+              value: loading ? null : value / 100,
+              strokeWidth: 6,
+              backgroundColor: Colors.grey[200],
+              valueColor: AlwaysStoppedAnimation<Color>(
+                value >= 80
+                    ? Colors.green
+                    : value >= 50
+                        ? Colors.orange
+                        : Colors.red,
+              ),
+            ),
+            Text(
+              loading ? '…' : '${value.toStringAsFixed(0)}%',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
       ),
     );
   }

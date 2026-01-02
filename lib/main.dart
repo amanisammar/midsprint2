@@ -16,6 +16,7 @@ import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
 import 'screens/onboarding/role_selection_screen.dart';
 import 'features/medicines/add_medicine_screen.dart';
+import 'theme/theme_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,64 +46,25 @@ class PillCareApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider<AuthNotifier>(
-      create: (_) => AuthNotifier(),
-      child: MaterialApp(
-        title: 'PillCare',
-        debugShowCheckedModeBanner: false,
-
-        // Theme
-        theme: ThemeData(
-          useMaterial3: true,
-
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF2EC4B6), // teal
-            primary: const Color(0xFF2EC4B6),
-            secondary: const Color(0xFF4D96FF),
-            surface: const Color(0xFFF7F4EF),
-          ),
-
-          scaffoldBackgroundColor: const Color(0xFFF7F4EF),
-
-          inputDecorationTheme: InputDecorationTheme(
-            filled: true,
-            fillColor: Colors.white,
-            labelStyle: const TextStyle(color: Color(0xFF2E2E2E)),
-            floatingLabelStyle: const TextStyle(color: Color(0xFF2EC4B6)),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFDADADA)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF2EC4B6), width: 2),
-            ),
-          ),
-
-          elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2EC4B6),
-              foregroundColor: Colors.white,
-              textStyle: const TextStyle(fontWeight: FontWeight.bold),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-          ),
-
-          appBarTheme: const AppBarTheme(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            foregroundColor: Colors.black,
-          ),
-        ),
-
-        home: const RootGate(),
-        routes: {
-          '/login': (_) => const LoginScreen(),
-          SignupScreen.routeName: (_) => const SignupScreen(),
-          RoleSelectionScreen.routeName: (_) => const RoleSelectionScreen(),
-          '/add-medicine': (_) => const AddMedicineScreen(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AuthNotifier>(create: (_) => AuthNotifier()),
+        ChangeNotifierProvider<ThemeController>(create: (_) => ThemeController()),
+      ],
+      child: Consumer<ThemeController>(
+        builder: (context, themeController, _) {
+          return MaterialApp(
+            title: 'PillCare',
+            debugShowCheckedModeBanner: false,
+            theme: themeController.theme,
+            home: const RootGate(),
+            routes: {
+              '/login': (_) => const LoginScreen(),
+              SignupScreen.routeName: (_) => const SignupScreen(),
+              RoleSelectionScreen.routeName: (_) => const RoleSelectionScreen(),
+              '/add-medicine': (_) => const AddMedicineScreen(),
+            },
+          );
         },
       ),
     );

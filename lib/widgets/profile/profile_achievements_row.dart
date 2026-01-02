@@ -21,7 +21,50 @@ class ProfileAchievementsRow extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(child: Text(context.loc.t('keepStreakEarnBadges'))),
             TextButton(
-              onPressed: () {},
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                  ),
+                  builder: (_) => SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.emoji_events, color: Colors.amber),
+                              const SizedBox(width: 8),
+                              Text(
+                                context.loc.t('badges'),
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Earn badges by keeping your streak, completing all doses in a day, and hitting perfect 7-day weeks. More badge types coming soon!',
+                          ),
+                          const SizedBox(height: 16),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: Text(context.loc.t('close')),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
               child: Text(context.loc.t('learnMore')),
             ),
           ],

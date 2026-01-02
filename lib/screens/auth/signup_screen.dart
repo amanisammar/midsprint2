@@ -159,8 +159,12 @@ class _SignupScreenState extends State<SignupScreen> {
   Widget build(BuildContext context) {
     final authStatus = context.watch<AuthNotifier>().status;
     final isBusy = _isLoading || authStatus == AuthStatus.authenticating;
+    final mediaQuery = MediaQuery.of(context);
+    final keyboardInset = mediaQuery.viewInsets.bottom;
+    final bottomSafeInset = mediaQuery.viewPadding.bottom;
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: const Color(0xFFF9F7F4),
       body: Stack(
         children: [
@@ -250,49 +254,63 @@ class _SignupScreenState extends State<SignupScreen> {
                         label: context.loc.t('birthDate'),
                       ),
                       const SizedBox(height: 22),
-                      isBusy
-                          ? const Center(child: CircularProgressIndicator())
-                          : ElevatedButton(
-                              key: const Key('signupButton'),
-                              onPressed: _handleSignUp,
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 16,
+                      AnimatedPadding(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutCubic,
+                        padding: EdgeInsets.only(
+                          bottom: keyboardInset + bottomSafeInset + 8,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            isBusy
+                                ? const Center(
+                                    child: CircularProgressIndicator(),
+                                  )
+                                : ElevatedButton(
+                                    key: const Key('signupButton'),
+                                    onPressed: _handleSignUp,
+                                    style: ElevatedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 16,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(26),
+                                      ),
+                                      backgroundColor: const Color(0xFF23C3AE),
+                                      foregroundColor: Colors.white,
+                                      textStyle: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    child: Text(context.loc.t('signUp')),
+                                  ),
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  context.loc.t('haveAccount'),
+                                  style: TextStyle(color: Colors.grey[700]),
                                 ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(26),
+                                TextButton(
+                                  key: const Key('loginLink'),
+                                  onPressed: isBusy
+                                      ? null
+                                      : () => Navigator.of(context).pop(),
+                                  child: Text(
+                                    context.loc.t('signIn'),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF2B2D31),
+                                    ),
+                                  ),
                                 ),
-                                backgroundColor: const Color(0xFF23C3AE),
-                                foregroundColor: Colors.white,
-                                textStyle: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              child: Text(context.loc.t('signUp')),
+                              ],
                             ),
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            context.loc.t('haveAccount'),
-                            style: TextStyle(color: Colors.grey[700]),
-                          ),
-                          TextButton(
-                            key: const Key('loginLink'),
-                            onPressed: isBusy
-                                ? null
-                                : () => Navigator.of(context).pop(),
-                            child: Text(
-                              context.loc.t('signIn'),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF2B2D31),
-                              ),
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ],
                   ),

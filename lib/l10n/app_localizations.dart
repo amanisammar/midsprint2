@@ -148,6 +148,21 @@ class AppLocalizations {
     'termsTitle': 'Terms of Service',
     'termsContent':
         'Last Updated: December 2025\n\n1. Acceptance of Terms\nBy using PillCare, you agree to these Terms of Service.\n\n2. Medical Disclaimer\nPillCare is a medication reminder tool and does not provide medical advice. Always consult your healthcare provider.\n\n3. User Responsibilities\nYou are responsible for accurate medication information and following your prescribed treatment plan.\n\n4. Limitation of Liability\nPillCare is provided "as is" without warranties. We are not liable for missed doses or medical outcomes.\n\n5. Account Termination\nYou may delete your account at any time. We reserve the right to terminate accounts that violate these terms.\n\n6. Contact\nFor questions, contact support@pillcare.app',
+    
+    // History Screen
+    'history7Days': '7-Day History',
+    'viewHistory': 'View your medicine intake history',
+      'theme': 'Theme',
+      'themeSubtitle': 'Pick your app colors',
+    'loadingHistory': 'Loading your history...',
+    'historyError': 'Error loading history',
+    'noHistoryData': 'No history data available',
+    'summary7Days': '7-Day Summary',
+    'dailyBreakdown': 'Daily Breakdown',
+    'total': 'Total',
+    'noMedicinesScheduled': 'No medicines scheduled',
+    'historyLoadedSuccess': 'History loaded successfully',
+    'errorLoadingHistory': 'Error loading history',
     'dataSecurityTitle': 'Data Security',
     'dataSecurityMessage':
         'Your data is encrypted in transit and at rest. We use industry-standard security practices to protect your information.',
