@@ -1,0 +1,26 @@
+{
+    "flutter": {
+        "platforms": {
+            "dart": {
+                "lib/firebase_options.dart": {
+                    "projectId": "pillcare-9c733",
+                    "configurations": {
+                        "android": "1:289398391358:android:d9ef7427f832463c91076f"
+                    }
+                }
+            },
+            "android": {
+                "buildConfigurations": {
+                    ".": {
+                        "projectId": "pillcare-9c733",
+                        "appId": "1:289398391358:android:d9ef7427f832463c91076f",
+                        "fileOutput": "android/app/google-services.json"
+                    }
+                }
+            }
+        }
+    },
+    "firestore": {
+        "rules": "firestore.rules"
+    }
+}
